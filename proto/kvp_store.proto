@@ -1,0 +1,23 @@
+// version of protocol buffer used
+syntax = "proto3";
+
+package kvp_store;
+
+message KvpKey {
+  string key = 1;
+}
+
+message KvpPayload {
+  string key = 1;
+  string value = 2;
+}
+
+message KvpResponse {
+  string message = 1;
+}
+
+service KvpStore {
+  rpc store_kvp (KvpPayload) returns (KvpResponse);
+  rpc get_kvp (KvpKey) returns (KvpPayload);
+}
+
