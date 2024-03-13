@@ -7,3 +7,19 @@ edition = "2021"
 
 [dependencies]
 rusqlite = "0.31.0"
+tonic = "0.11.0"
+prost = "0.12.3"
+tokio = { version = "1.36.0", features = ["rt", "rt-multi-thread", "macros"] }
+
+[[bin]]
+name = "server"
+path = "src/server.rs"
+
+# client binary
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
+
+[build-dependencies]
+tonic-build = "0.11.0"
