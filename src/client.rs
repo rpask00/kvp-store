@@ -1,61 +1,65 @@
+use log::warn;
+use rocket::{get, launch, post, routes, State};
+use rocket::response::status::BadRequest;
+use rocket::serde::json::Json;
+use tokio::sync::Mutex;
+use tonic::{Response, Status};
+use tonic::transport::Channel;
+
+use kvp_store::{KvpKey, KvpPayload, KvpResponse};
+use kvp_store::kvp_store_client::KvpStoreClient;
+
 pub mod kvp_store {
     tonic::include_proto!("kvp_store");
 }
 
-use std::sync::{Arc};
-use rocket::{get, launch, post, routes, State};
-use rocket::serde::json::Json;
-use rocket::serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
-use tonic::transport::Channel;
-use kvp_store::kvp_store_client::KvpStoreClient;
-use kvp_store::{KvpKey, KvpPayload, KvpResponse};
-
-
-#[derive(Deserialize, Serialize)]
-struct KvpPayloadDto {
-    key: String,
-    value: String,
-}
-
-#[derive(Deserialize, Serialize)]
-struct KvpResponseDto {
-    message: String,
-}
-
 #[post("/store_value", data = "<kvp_payload_dto>")]
 async fn store_value(
-    kvp_payload_dto: Json<KvpPayloadDto>,
+    kvp_payload_dto: Json<KvpPayload>,
     client: &State<Mutex<KvpStoreClient<Channel>>>,
-) -> Json<KvpResponseDto> {
+) -> Result<Json<KvpResponse>, BadRequest<String>> {
+    let key = kvp_payload_dto.0.key;
+    let value = kvp_payload_dto.0.value;
+
+    if key.len() == 0 {
+        warn!("Key cannot be empty");
+        return Err(BadRequest("Key cannot be empty".to_string()));
+    }
+
+    if value.len() == 0 {
+        warn!("Value cannot be empty");
+        return Err(BadRequest("Value cannot be empty".to_string()));
+    }
+
     let request = tonic::Request::new(KvpPayload {
-        key: kvp_payload_dto.0.key,
-        value: kvp_payload_dto.0.value,
+        key,
+        value,
     });
 
-    let lock = client.lock().await.store_kvp(request).await;
-
-
-    Json(KvpResponseDto {
-        message: lock.unwrap().into_inner().message
-    })
+    return match client.lock().await.store_kvp(request).await {
+        Ok(response) => Ok(Json(response.into_inner())),
+        Err(e) => Err(BadRequest(e.message().to_string()))
+    };
 }
 
 #[get("/retrieve_value/<key>")]
 async fn retrieve_value(
     key: String,
     client: &State<Mutex<KvpStoreClient<Channel>>>,
-) -> Json<KvpPayloadDto> {
+) -> Result<Json<KvpPayload>, BadRequest<String>> {
+    if key.len() == 0 {
+        warn!("Cannot retrieve value for empty key");
+        return Err(BadRequest("Key cannot be empty".to_string()));
+    }
+
     let request = tonic::Request::new(KvpKey {
         key
     });
 
-    let kvp = client.lock().await.get_kvp(request).await.unwrap().into_inner();
-
-    Json(KvpPayloadDto {
-        key: kvp.key,
-        value: kvp.value,
-    })
+    return match client.lock().await.get_kvp(request).await {
+        Ok(payload) => Ok(Json(payload.into_inner())),
+        Err(e) => Err(BadRequest(e.message().to_string()))
+    };
 }
 
 
