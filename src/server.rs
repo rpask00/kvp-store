@@ -1,5 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 use rusqlite::{Connection, Result};
+use tokio::sync::Mutex;
 use tonic::{transport::Server, Request, Response, Status};
 
 pub mod kvp_store {
@@ -40,10 +41,11 @@ impl MyKvpStore {
 
 #[tonic::async_trait]
 impl KvpStore for MyKvpStore {
-    async fn store_kvp(&self, request: Request<KvpPayload>) -> Result<Response<KvpResponse>, Status>{
+    async fn store_kvp(&self, request: Request<KvpPayload>) -> Result<Response<KvpResponse>, Status> {
         let kvp_payload = request.into_inner();
 
-        let response_message = match self.db_conn.lock().unwrap().execute(
+   
+        let response_message = match self.db_conn.lock().await.execute(
             "INSERT INTO key_value_pairs (key, value) VALUES (?1, ?2)",
             (&kvp_payload.key, &kvp_payload.value),
         ) {
@@ -58,7 +60,7 @@ impl KvpStore for MyKvpStore {
     }
 
     async fn get_kvp(&self, request: Request<KvpKey>) -> Result<Response<KvpPayload>, Status> {
-        let query = self.db_conn.lock().unwrap().query_row(
+        let query = self.db_conn.lock().await.query_row(
             "SELECT key, value FROM key_value_pairs WHERE key = ?1",
             &[&request.into_inner().key],
             |row| {
