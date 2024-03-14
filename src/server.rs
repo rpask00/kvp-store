@@ -24,10 +24,9 @@ impl MyKvpStore {
         if !table_exists {
             db_conn.execute(
                 "CREATE TABLE key_value_pairs (
-                id    INTEGER PRIMARY KEY,
-                key   TEXT NOT NULL,
-                value TEXT NOT NULL,
-            )",
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )",
                 (),
             )?;
         }
@@ -44,12 +43,11 @@ impl KvpStore for MyKvpStore {
     async fn store_kvp(&self, request: Request<KvpPayload>) -> Result<Response<KvpResponse>, Status> {
         let kvp_payload = request.into_inner();
 
-   
         let response_message = match self.db_conn.lock().await.execute(
-            "INSERT INTO key_value_pairs (key, value) VALUES (?1, ?2)",
+            "INSERT OR REPLACE INTO key_value_pairs (key, value) VALUES (?1, ?2)",
             (&kvp_payload.key, &kvp_payload.value),
         ) {
-            Ok(_) => format!("Key value pair stored successfully! {}:{}!", kvp_payload.key, kvp_payload.value),
+            Ok(_) => format!("Value {} stored successfully for key {}", kvp_payload.value, kvp_payload.key),
             Err(e) => e.to_string(),
         };
 

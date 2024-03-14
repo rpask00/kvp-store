@@ -1,11 +1,9 @@
 use log::warn;
 use rocket::{get, launch, post, routes, State};
-use rocket::response::status::BadRequest;
-use rocket::serde::json::Json;
+use rocket::response::status::{BadRequest, NotFound};
+use rocket::serde::json::{Json};
 use tokio::sync::Mutex;
-use tonic::{Response, Status};
 use tonic::transport::Channel;
-
 use kvp_store::{KvpKey, KvpPayload, KvpResponse};
 use kvp_store::kvp_store_client::KvpStoreClient;
 
@@ -17,18 +15,18 @@ pub mod kvp_store {
 async fn store_value(
     kvp_payload_dto: Json<KvpPayload>,
     client: &State<Mutex<KvpStoreClient<Channel>>>,
-) -> Result<Json<KvpResponse>, BadRequest<String>> {
+) -> Result<Json<KvpResponse>, BadRequest<&str>> {
     let key = kvp_payload_dto.0.key;
     let value = kvp_payload_dto.0.value;
 
     if key.len() == 0 {
         warn!("Key cannot be empty");
-        return Err(BadRequest("Key cannot be empty".to_string()));
+        return Err(BadRequest("Key cannot be empty"));
     }
 
     if value.len() == 0 {
         warn!("Value cannot be empty");
-        return Err(BadRequest("Value cannot be empty".to_string()));
+        return Err(BadRequest("Value cannot be empty"));
     }
 
     let request = tonic::Request::new(KvpPayload {
@@ -38,7 +36,7 @@ async fn store_value(
 
     return match client.lock().await.store_kvp(request).await {
         Ok(response) => Ok(Json(response.into_inner())),
-        Err(e) => Err(BadRequest(e.message().to_string()))
+        Err(e) => Err(BadRequest(e.code().description()))
     };
 }
 
@@ -46,19 +44,14 @@ async fn store_value(
 async fn retrieve_value(
     key: String,
     client: &State<Mutex<KvpStoreClient<Channel>>>,
-) -> Result<Json<KvpPayload>, BadRequest<String>> {
-    if key.len() == 0 {
-        warn!("Cannot retrieve value for empty key");
-        return Err(BadRequest("Key cannot be empty".to_string()));
-    }
-
+) -> Result<Json<KvpPayload>, BadRequest<&str>> {
     let request = tonic::Request::new(KvpKey {
         key
     });
 
     return match client.lock().await.get_kvp(request).await {
         Ok(payload) => Ok(Json(payload.into_inner())),
-        Err(e) => Err(BadRequest(e.message().to_string()))
+        Err(e) => Err(BadRequest(e.code().description()))
     };
 }
 
