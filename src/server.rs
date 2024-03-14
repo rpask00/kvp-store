@@ -92,3 +92,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+
+#[tokio::test]
+async fn test_store_kvp() {
+    let kvp_store = MyKvpStore::init("test_store_kvp.db");
+
+    if let Ok(kvp_store) = kvp_store {
+        let request = Request::new(KvpPayload {
+            key: "test_key".to_string(),
+            value: "test_value".to_string(),
+        });
+
+        let response = kvp_store.store_kvp(request).await;
+        assert_eq!(response.is_ok(), true, "Failed to store key-value pair");
+
+        let response = response.unwrap();
+
+        assert_eq!(response.into_inner().message, "Value test_value stored successfully for key stest_key");
+    } else {
+        assert!(false, "Database connection failed");
+    }
+
+    std::fs::remove_file("test_store_kvp.db").unwrap();
+}
+
+#[tokio::test]
+async fn test_get_kvp() {
+    let kvp_store = MyKvpStore::init("test_get_kvp.db");
+
+    if let Ok(kvp_store) = kvp_store {
+        let request = Request::new(KvpPayload {
+            key: "test_key".to_string(),
+            value: "test_value".to_string(),
+        });
+
+        let response = kvp_store.store_kvp(request).await;
+        assert_eq!(response.is_ok(), true, "Failed to store key-value pair");
+
+        let request = Request::new(KvpKey {
+            key: "test_key".to_string(),
+        });
+
+        if let Ok(response) = kvp_store.get_kvp(request).await {
+            let response = response.into_inner();
+            assert_eq!(response.key, "test_key", "test_key not matched");
+            assert_eq!(response.value, "test_value", "test_value not matched");
+        } else {
+            assert!(false, "Failed to retrieve key-value pair");
+        }
+    } else {
+        assert!(false, "Database connection failed");
+    }
+    std::fs::remove_file("test_get_kvp.db").unwrap();
+}
+
