@@ -34,6 +34,37 @@ After generating the TLS certificate, start the client service with the followin
 ```bash
 cargo run --bin client
 ```
+By default, the client service will start on address 127.0.0.1:8000 and expects the server to be accessible on port 50051.
 
-By default, the client service will start on port **`8000`** and expects the server to be accessible on port **`50051`**.
+
+## **Client API Endpoints**
+
+The client's API exposes two endpoints:
+
+### **1. POST /store_value**
+
+This endpoint expects a key-value payload as the request body. Here is an example request body:
+
+``` json
+{
+  "key": "test_key",
+  "value": "test_value"
+}
+```
+
+### **2. GET /retrieve_value/`<key>`**
+
+This endpoint retrieves the value corresponding to the specified key. Replace **`<key>`** with the key you want to find. If the key is valid, the request will respond with the corresponding key-value pair.
+
+## **Running Tests**
+
+To run tests, execute the following commands:
+
+```bash
+cargo build
+```
+
+```bash
+cargo test
+```
 
