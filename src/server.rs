@@ -78,8 +78,18 @@ impl KvpStore for MyKvpStore {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "0.0.0.0:50051".parse()?;
-    let kvp_store = MyKvpStore::init("database.db")?;
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.len() != 3 {
+        eprintln!("Usage: <port> <database.db>");
+        std::process::exit(1);
+    }
+
+    let port = args[1].parse::<u16>()?;
+    let db_file = args[2].as_str();
+
+    let addr = format!("0.0.0.0:{}", port).parse()?;
+    let kvp_store = MyKvpStore::init(db_file)?;
 
 
     println!("KVP Store server listening on {}", addr);
@@ -108,7 +118,7 @@ async fn test_store_kvp() {
 
         let response = response.unwrap();
 
-        assert_eq!(response.into_inner().message, "Value test_value stored successfully for key stest_key");
+        assert_eq!(response.into_inner().message, "Value test_value stored successfully for key test_key");
     } else {
         assert!(false, "Database connection failed");
     }

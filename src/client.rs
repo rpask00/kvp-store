@@ -1,3 +1,4 @@
+use std::process::{Child, Command};
 use log::warn;
 use rocket::{get, launch, post, routes, State};
 use rocket::response::status::{BadRequest, NotFound};
@@ -6,6 +7,10 @@ use tokio::sync::Mutex;
 use tonic::transport::Channel;
 use kvp_store::{KvpKey, KvpPayload, KvpResponse};
 use kvp_store::kvp_store_client::KvpStoreClient;
+use rocket::http::{ContentType, Status};
+use rocket::local::asynchronous::Client;
+use tokio::time::sleep;
+
 
 pub mod kvp_store {
     tonic::include_proto!("kvp_store");
@@ -65,6 +70,86 @@ async fn rocket() -> _ {
 
     let mut client = KvpStoreClient::new(channel);
     rocket::build().mount("/", routes![store_value, retrieve_value]).manage(Mutex::new(client))
+}
+
+
+fn start_server(port: &str, db_file: &str) -> Child {
+    Command::new("target/debug/server")
+        .arg(port)
+        .arg(db_file)
+        .spawn()
+        .expect("Failed to start server")
+}
+
+#[tokio::test]
+async fn test_store_value_success() {
+    let server_port = "3201";
+    let db_file = "client_test1.db";
+    let server_address = "http://0.0.0.0:3201";
+    let mut server_process = start_server(server_port, db_file);
+
+    sleep(std::time::Duration::from_secs(3)).await;
+
+    let channel = Channel::from_static(server_address)
+        .connect()
+        .await.unwrap();
+
+    let client = KvpStoreClient::new(channel);
+
+    let rocket = rocket::build().mount("/", routes![store_value])
+        .manage(Mutex::new(client));
+
+    let client = Client::tracked(rocket).await.expect("valid rocket instance");
+
+    let response = client
+        .post("/store_value")
+        .header(ContentType::JSON)
+        .body(r#"{"key": "test_key", "value": "test_value"}"#)
+        .dispatch()
+        .await;
+
+    assert_eq!(response.status(), Status::Ok);
+
+    server_process.kill().unwrap();
+    tokio::fs::remove_file(db_file).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_retrieve_value_success() {
+    let server_port = "3202";
+    let db_file = "client_test2.db";
+    let server_address = "http://0.0.0.0:3202";
+    let mut server_process = start_server(server_port, db_file);
+
+    sleep(std::time::Duration::from_secs(3)).await;
+
+    let channel = Channel::from_static(server_address)
+        .connect()
+        .await.unwrap();
+
+    let client = KvpStoreClient::new(channel);
+
+    let rocket = rocket::build().mount("/", routes![store_value, retrieve_value])
+        .manage(Mutex::new(client));
+
+    let client = Client::tracked(rocket).await.expect("valid rocket instance");
+
+    client
+        .post("/store_value")
+        .header(ContentType::JSON)
+        .body(r#"{"key": "test_key", "value": "test_value"}"#)
+        .dispatch()
+        .await;
+
+    let response = client
+        .get("/retrieve_value/test_key")
+        .dispatch()
+        .await;
+
+    assert_eq!(response.status(), Status::Ok);
+
+    server_process.kill().unwrap();
+    tokio::fs::remove_file(db_file).await.unwrap();
 }
 
 
